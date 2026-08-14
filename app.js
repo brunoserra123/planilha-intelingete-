@@ -1705,6 +1705,16 @@ function resetDatabase() {
 // 10. Inicialização do DOM e Event Listeners
 // ==========================================================================
 document.addEventListener('DOMContentLoaded', () => {
+    // 0. Auto-configuração de Token via parâmetro na URL (?token=...)
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlToken = urlParams.get('token');
+    if (urlToken) {
+        localStorage.setItem('gh_token', urlToken.trim());
+        const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+        window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
+        alert("🤖 Token do GitHub configurado e salvo com sucesso!");
+    }
+
     // 1. Manter a tela de bloqueio ativa e aguardar clique em "Desbloquear"
     const unlockBtn = document.getElementById('btn-unlock');
     const passwordInput = document.getElementById('site-password');
