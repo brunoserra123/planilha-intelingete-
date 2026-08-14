@@ -349,6 +349,43 @@ function formatDate(dateStr) {
 }
 
 // ==========================================================================
+// 3. Sistema de Abas (Tabs)
+// ==========================================================================
+function switchTab(targetId) {
+    document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+
+    const activeNav = document.querySelector(`.nav-item[data-target="${targetId}"]`);
+    if (activeNav) activeNav.classList.add('active');
+
+    const mobileSelect = document.getElementById('mobile-tab-select');
+    if (mobileSelect) mobileSelect.value = targetId;
+
+    const targetTab = document.getElementById(targetId);
+    if (targetTab) targetTab.classList.add('active');
+
+    const tabTitle = document.getElementById('current-tab-title');
+    if (tabTitle) {
+        if (targetId === 'tab-dashboard') {
+            tabTitle.innerText = 'Dashboard Geral';
+        } else {
+            const name = activeNav ? activeNav.querySelector('span').innerText : '';
+            tabTitle.innerText = name;
+        }
+    }
+
+    if (targetId === 'tab-dashboard') {
+        renderDashboard();
+    } else if (targetId === 'tab-investments') {
+        renderInvestments();
+    } else if (targetId === 'tab-sales') {
+        renderPrinting3D();
+    } else if (targetId === 'tab-transactions') {
+        renderTransactions();
+    }
+}
+
+// ==========================================================================
 // 4. Seção: Dashboard & Inteligência
 // ==========================================================================
 function renderDashboard() {
@@ -1727,6 +1764,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.key === 'Enter') attemptUnlock();
         });
         passwordInput.focus();
+    }
+
+    // 2. Inicializar escutadores de Abas (Desktop e Mobile)
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const targetId = item.getAttribute('data-target');
+            switchTab(targetId);
+        });
+    });
+
+    const mobileSelect = document.getElementById('mobile-tab-select');
+    if (mobileSelect) {
+        mobileSelect.addEventListener('change', (e) => {
+            switchTab(e.target.value);
+        });
     }
 
     // --- Configurar escutadores da Calculadora de Vendas ---
