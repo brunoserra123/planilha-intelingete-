@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planilha Financeira Inteligente & Central de Vendas</title>
+    <meta name="description" content="Dashboard financeiro inteligente com controle de investimentos e gestão de vendas e serviços.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- CryptoJS para criptografia AES cliente-side -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>📊</text></svg>">
+</head>
+<body>
+    <!-- Tela de Bloqueio (Lock Screen) para Criptografia -->
+    <div id="lock-screen" class="lock-overlay active">
+        <div class="lock-modal">
+            <div style="font-size: 2.5rem; margin-bottom: 1rem;">🔒</div>
+            <h2>Acesso Restrito & Criptografado</h2>
+            <p>Seus dados financeiros são privados. Digite sua senha para descriptografar e liberar o painel.</p>
+            <div class="form-group" style="margin-top: 1.5rem;">
+                <input type="password" id="site-password" placeholder="Digite sua senha..." required autocomplete="current-password">
+            </div>
+            <button id="btn-unlock" class="btn btn-primary" style="margin-top: 1rem; width: 100%;">
+                Desbloquear Planilha
+            </button>
+            <p id="unlock-error" class="red hidden" style="font-size: 0.85rem; margin-top: 0.8rem; text-align: center; font-weight: 600;">
+                Senha incorreta ou dados corrompidos na nuvem.
+            </p>
+        </div>
+    </div>
+
+    <!-- Background Glowing Orbs -->
+    <div class="glow-bg">
+        <div class="glowing-orb orb-1"></div>
+        <div class="glowing-orb orb-2"></div>
+        <div class="glowing-orb orb-3"></div>
+    </div>
+
+    <!-- App Container -->
+    <div class="app-container">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-icon">
+                    <i data-lucide="trending-up" class="brand-logo-icon"></i>
+                </div>
+                <div class="brand-text">
+                    <h1>FinSmart</h1>
+                    <span>Planilha de Bolso</span>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <button class="nav-item active" data-target="tab-dashboard">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </button>
+                <button class="nav-item" data-target="tab-transactions">
+                    <i data-lucide="arrow-left-right"></i>
+                    <span>Transações</span>
+                </button>
+                <button class="nav-item" data-target="tab-investments">
+                    <i data-lucide="pie-chart"></i>
+                    <span>Investimentos</span>
+                </button>
+                <button class="nav-item" data-target="tab-sales">
+                    <i data-lucide="shopping-bag"></i>
+                    <span>Vendas & Serviços</span>
+                </button>
+                <button class="nav-item" data-target="tab-settings">
+                    <i data-lucide="settings"></i>
+                    <span>Configurações</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-profile">
+                    <div class="user-avatar">BS</div>
+                    <div class="user-info">
+                        <p class="user-name">Bruno Serra</p>
+                        <p class="user-role">Administrador</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="app-header">
+                <div class="header-title-container">
+                    <h2 id="current-tab-title">Dashboard Geral</h2>
+                    <p id="current-date" class="header-date">Carregando data...</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" id="btn-cloud-sync" title="Sincronizar dados na nuvem (GitHub)">
+                        <i data-lucide="refresh-cw"></i> Sincronizar Nuvem
+                    </button>
+                    <button class="btn btn-primary" id="btn-quick-add">
+                        <i data-lucide="plus"></i> Novo Lançamento
+                    </button>
+                </div>
+            </header>
+
+            <!-- Tab: Dashboard -->
+            <section class="tab-content active" id="tab-dashboard">
+                <!-- Metrics Grid -->
+                <div class="metrics-grid">
+                    <div class="metric-card card-income">
+                        <div class="metric-header">
+                            <span>Receitas (Mês)</span>
+                            <div class="metric-icon"><i data-lucide="arrow-down-left"></i></div>
+                        </div>
+                        <h3 id="dash-income">R$ 0,00</h3>
+                        <p class="metric-trend green"><i data-lucide="trending-up"></i> <span id="dash-income-sub">Este mês</span></p>
+                    </div>
+                    <div class="metric-card card-expense">
+                        <div class="metric-header">
+                            <span>Despesas (Mês)</span>
+                            <div class="metric-icon"><i data-lucide="arrow-up-right"></i></div>
+                        </div>
+                        <h3 id="dash-expense">R$ 0,00</h3>
+                        <p class="metric-trend red"><i data-lucide="trending-down"></i> <span id="dash-expense-sub">Este mês</span></p>
+                    </div>
+                    <div class="metric-card card-balance">
+                        <div class="metric-header">
+                            <span>Saldo Líquido</span>
+                            <div class="metric-icon"><i data-lucide="wallet"></i></div>
+                        </div>
+                        <h3 id="dash-balance">R$ 0,00</h3>
+                        <p class="metric-trend" id="dash-balance-trend"><span id="dash-savings-rate">0% poupado</span></p>
+                    </div>
+                    <div class="metric-card card-invested">
+                        <div class="metric-header">
+                            <span>Investimentos</span>
+                            <div class="metric-icon"><i data-lucide="trending-up"></i></div>
+                        </div>
+                        <h3 id="dash-invested">R$ 0,00</h3>
+                        <p class="metric-trend green" id="dash-invested-profit"><span id="dash-invested-sub">R$ 0,00 de lucro</span></p>
+                    </div>
+                    <div class="metric-card card-3d">
+                        <div class="metric-header">
+                            <span>Faturamento Comercial</span>
+                            <div class="metric-icon"><i data-lucide="shopping-bag"></i></div>
+                        </div>
+                        <h3 id="dash-3d-sales">R$ 0,00</h3>
+                        <p class="metric-trend purple" id="dash-3d-orders"><span id="dash-3d-sub">0 pedidos este mês</span></p>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="dashboard-row grid-2-1">
+                    <div class="glass-card chart-container">
+                        <div class="card-header">
+                            <h4>Fluxo de Caixa (Mensal)</h4>
+                            <div class="chart-actions">
+                                <span class="chart-legend"><span class="dot income"></span> Receitas</span>
+                                <span class="chart-legend"><span class="dot expense"></span> Despesas</span>
+                            </div>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="flowChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="glass-card chart-container">
+                        <div class="card-header">
+                            <h4>Despesas por Categoria</h4>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="categoryChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Row: Insights & Budget Progress -->
+                <div class="dashboard-row grid-1-1">
+                    <!-- Smart Insights -->
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <h4 class="flex-align"><i data-lucide="sparkles" class="purple-icon"></i> Assistente Smart e Insights</h4>
+                        </div>
+                        <div class="insights-container" id="insights-list">
+                            <!-- Populated by JS -->
+                            <p class="empty-state">Sem dados suficientes para gerar conselhos. Adicione transações diárias!</p>
+                        </div>
+                    </div>
+
+                    <!-- Budget Progress Tracker -->
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <h4>Orçamentos do Mês</h4>
+                        </div>
+                        <div class="budgets-container" id="dash-budgets-list">
+                            <!-- Populated by JS -->
+                            <p class="empty-state">Nenhum orçamento configurado. Vá na aba Configurações!</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab: Transactions -->
+            <section class="tab-content" id="tab-transactions">
+                <div class="glass-card">
+                    <!-- Filters and Search -->
+                    <div class="table-actions-bar">
+                        <div class="search-box">
+                            <i data-lucide="search"></i>
+                            <input type="text" id="tx-search" placeholder="Buscar por descrição...">
+                        </div>
+                        <div class="filters-group">
+                            <select id="tx-filter-type">
+                                <option value="all">Todos os tipos</option>
+                                <option value="income">Receitas</option>
+                                <option value="expense">Despesas</option>
+                            </select>
+                            <select id="tx-filter-category">
+                                <option value="all">Todas as categorias</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                            <select id="tx-filter-month">
+                                <option value="all">Todos os meses</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                            <button class="btn btn-secondary" id="tx-btn-clear" title="Limpar filtros">
+                                <i data-lucide="filter-x"></i> Limpar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Transactions Table -->
+                    <div class="table-responsive">
+                        <table class="table" id="transactions-table">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Descrição</th>
+                                    <th>Categoria</th>
+                                    <th>Conta/Carteira</th>
+                                    <th>Tipo</th>
+                                    <th>Valor</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transactions-tbody">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab: Investments -->
+            <section class="tab-content" id="tab-investments">
+                <!-- Investment Headers -->
+                <div class="invest-summary-cards">
+                    <div class="glass-card mini-metric">
+                        <span class="label">Total Aplicado</span>
+                        <h4 id="inv-total-invested">R$ 0,00</h4>
+                    </div>
+                    <div class="glass-card mini-metric">
+                        <span class="label">Valor Atual Total</span>
+                        <h4 id="inv-total-current">R$ 0,00</h4>
+                    </div>
+                    <div class="glass-card mini-metric">
+                        <span class="label">Rendimento Total</span>
+                        <h4 id="inv-total-yield" class="green">R$ 0,00 (0,00%)</h4>
+                    </div>
+                    <button class="btn btn-primary" id="btn-add-asset">
+                        <i data-lucide="plus-circle"></i> Adicionar Ativo
+                    </button>
+                </div>
+
+                <!-- Investment Dashboard Grid -->
+                <div class="dashboard-row grid-2-1">
+                    <!-- Assets Table -->
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <h4>Ativos Financeiros</h4>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table" id="assets-table">
+                                <thead>
+                                    <tr>
+                                        <th>Ativo</th>
+                                        <th>Classe</th>
+                                        <th>Qtd.</th>
+                                        <th>Preço Médio</th>
+                                        <th>Preço Atual</th>
+                                        <th>Total Investido</th>
+                                        <th>Valor Atual</th>
+                                        <th>Rendimento</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="assets-tbody">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Portfolio allocation -->
+                    <div class="glass-card chart-container">
+                        <div class="card-header">
+                            <h4>Alocação de Ativos</h4>
+                        </div>
+                        <div class="chart-wrapper">
+                            <canvas id="portfolioChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab: Sales & Services -->
+            <section class="tab-content" id="tab-sales">
+                <!-- Sales/Services Metrics -->
+                <div class="metrics-grid print-metrics">
+                    <div class="metric-card card-3d-prod">
+                        <div class="metric-header">
+                            <span>Faturamento Comercial</span>
+                            <div class="metric-icon"><i data-lucide="dollar-sign"></i></div>
+                        </div>
+                        <h3 id="p3d-total-revenue">R$ 0,00</h3>
+                        <p class="metric-trend green"><i data-lucide="check-circle"></i> Entregue e pago</p>
+                    </div>
+                    <div class="metric-card card-3d-prod">
+                        <div class="metric-header">
+                            <span>Pedidos/Serviços Ativos</span>
+                            <div class="metric-icon"><i data-lucide="clock"></i></div>
+                        </div>
+                        <h3 id="p3d-active-orders">0</h3>
+                        <p class="metric-trend yellow" id="p3d-active-sub">Em produção / Fila</p>
+                    </div>
+                    <div class="metric-card card-3d-prod">
+                        <div class="metric-header">
+                            <span>Materiais Utilizados (3D)</span>
+                            <div class="metric-icon"><i data-lucide="package"></i></div>
+                        </div>
+                        <h3 id="p3d-total-filament">0g</h3>
+                        <p class="metric-trend purple" id="p3d-filament-sub">0 rolos de 1kg</p>
+                    </div>
+                    <div class="metric-card card-3d-prod">
+                        <div class="metric-header">
+                            <span>Horas Dedicadas</span>
+                            <div class="metric-icon"><i data-lucide="clock"></i></div>
+                        </div>
+                        <h3 id="p3d-total-hours">0h</h3>
+                        <p class="metric-trend blue">Tempo acumulado</p>
+                    </div>
+                </div>
+
+                <div class="dashboard-row grid-1-1">
+                    <!-- Cost Calculator -->
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <h4><i data-lucide="calculator" class="green-icon"></i> Precificação Inteligente</h4>
+                        </div>
+                        <form id="calc-sales-form" class="form-grid">
+                            <!-- Seletor de Tipo de Venda -->
+                            <div class="form-group">
+                                <label for="calc-mode">Tipo de Venda/Trabalho</label>
+                                <select id="calc-mode">
+                                    <option value="3d">Impressão 3D</option>
+                                    <option value="product">Produto Geral (Revenda / Artesanato)</option>
+                                    <option value="service">Serviço / Prestação por Hora</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="calc-model-name" id="label-calc-name">Nome do Item/Modelo</label>
+                                <input type="text" id="calc-model-name" placeholder="Ex: Modelagem 3D Logotipo" required>
+                            </div>
+
+                            <!-- Blocos de Inputs Condicionais -->
+                            <!-- Caso: Impressão 3D -->
+                            <div id="calc-block-3d" class="form-grid">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="calc-weight">Peso da Peça (gramas)</label>
+                                        <input type="number" id="calc-weight" min="1" step="any" placeholder="Ex: 150">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="calc-time">Tempo de Impressão (horas)</label>
+                                        <input type="number" id="calc-time" min="0.1" step="any" placeholder="Ex: 8.5">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Caso: Produto Geral -->
+                            <div id="calc-block-product" class="form-grid hidden">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="calc-prod-buy">Preço de Custo / Matéria-prima</label>
+                                        <input type="number" id="calc-prod-buy" min="0" step="any" placeholder="Ex: 45.00">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="calc-prod-pkg">Custo com Embalagem</label>
+                                        <input type="number" id="calc-prod-pkg" min="0" step="any" placeholder="Ex: 4.50">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Caso: Serviço -->
+                            <div id="calc-block-service" class="form-grid hidden">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="calc-srv-hour-rate">Valor Cobrado por Hora</label>
+                                        <input type="number" id="calc-srv-hour-rate" min="1" step="any" placeholder="Ex: 50.00">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="calc-srv-hours">Horas Estimadas</label>
+                                        <input type="number" id="calc-srv-hours" min="0.1" step="any" placeholder="Ex: 4">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Campos Compartilhados -->
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="calc-extra-cost" id="label-calc-extra">Custos Extras / Taxas</label>
+                                    <input type="number" id="calc-extra-cost" min="0" value="0.00" step="any" placeholder="Ex: 10.00">
+                                </div>
+                                <div class="form-group">
+                                    <label for="calc-margin">Margem de Lucro (%)</label>
+                                    <input type="number" id="calc-margin" min="0" value="100" placeholder="Ex: 100">
+                                </div>
+                            </div>
+                            
+                            <!-- Detailed Live Calc Summary -->
+                            <div class="calc-results-box">
+                                <div id="calc-results-rows-container">
+                                    <!-- Populated dynamically based on type -->
+                                </div>
+                                <div class="result-row total-row">
+                                    <span>Custo Real Total:</span>
+                                    <strong id="res-total-cost">R$ 0,00</strong>
+                                </div>
+                                <div class="result-row suggestion-row">
+                                    <span>Preço Sugerido:</span>
+                                    <strong id="res-sale-price">R$ 0,00</strong>
+                                </div>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" id="btn-calc-reset">Limpar</button>
+                                <button type="submit" class="btn btn-success" id="btn-calc-order">Criar Pedido de Venda</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Orders Control -->
+                    <div class="glass-card">
+                        <div class="card-header flex-between">
+                            <h4>Pedidos & Controle de Vendas</h4>
+                            <button class="btn btn-primary btn-sm" id="btn-add-order-direct">
+                                <i data-lucide="plus"></i> Novo Pedido
+                            </button>
+                        </div>
+                        <div class="orders-list-container" id="orders-list">
+                            <!-- Populated dynamically -->
+                            <div class="empty-state">Nenhum pedido cadastrado ainda. Use a calculadora ao lado!</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab: Settings -->
+            <section class="tab-content" id="tab-settings">
+                <div class="dashboard-row grid-1-1">
+                    <!-- Financial Configuration -->
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <h4>Configurações do Sistema</h4>
+                        </div>
+                        <form id="settings-form" class="form-grid">
+                            <div class="form-group">
+                                <label for="cfg-currency">Moeda Padrão</label>
+                                <select id="cfg-currency">
+                                    <option value="BRL">Real Brasileiro (R$)</option>
+                                    <option value="USD">Dólar Americano ($)</option>
+                                    <option value="EUR">Euro (€)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="cfg-service-hour">Valor Cobrado Padrão por Hora de Serviço</label>
+                                <input type="number" id="cfg-service-hour" min="1" step="any" value="50.00">
+                            </div>
+                            <div class="form-group">
+                                <label for="cfg-filament-price">Preço Médio do Filamento 3D (por Kg)</label>
+                                <input type="number" id="cfg-filament-price" min="1" step="any" value="120.00">
+                            </div>
+                            <div class="form-group">
+                                <label for="cfg-energy-kwh">Valor do kWh de Energia</label>
+                                <input type="number" id="cfg-energy-kwh" min="0.01" step="any" value="0.85">
+                            </div>
+                            <div class="form-group">
+                                <label for="cfg-printer-power">Potência Média da Impressora 3D (Watts)</label>
+                                <input type="number" id="cfg-printer-power" min="10" value="150">
+                            </div>
+                            <div class="form-group">
+                                <label for="cfg-depr-hour">Depreciação/Manutenção Impressora por Hora</label>
+                                <input type="number" id="cfg-depr-hour" min="0" step="any" value="1.50">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Salvar Parâmetros</button>
+                        </form>
+                    </div>
+
+                    <!-- Category Budgets -->
+                    <div class="glass-card">
+                        <div class="card-header">
+                            <h4>Limites Mensais de Gastos (Orçamentos)</h4>
+                        </div>
+                        <form id="budgets-form" class="form-grid">
+                            <div class="form-group">
+                                <label for="bdg-alimentacao">Alimentação</label>
+                                <input type="number" id="bdg-alimentacao" min="0" placeholder="Sem limite">
+                            </div>
+                            <div class="form-group">
+                                <label for="bdg-moradia">Moradia</label>
+                                <input type="number" id="bdg-moradia" min="0" placeholder="Sem limite">
+                            </div>
+                            <div class="form-group">
+                                <label for="bdg-transporte">Transporte</label>
+                                <input type="number" id="bdg-transporte" min="0" placeholder="Sem limite">
+                            </div>
+                            <div class="form-group">
+                                <label for="bdg-lazer">Lazer</label>
+                                <input type="number" id="bdg-lazer" min="0" placeholder="Sem limite">
+                            </div>
+                            <div class="form-group">
+                                <label for="bdg-saude">Saúde</label>
+                                <input type="number" id="bdg-saude" min="0" placeholder="Sem limite">
+                            </div>
+                            <div class="form-group">
+                                <label for="bdg-insumos3d">Insumos (Filamentos, Peças, Embalagens)</label>
+                                <input type="number" id="bdg-insumos3d" min="0" placeholder="Sem limite">
+                            </div>
+                            <div class="form-group">
+                                <label for="bdg-outros">Outros</label>
+                                <input type="number" id="bdg-outros" min="0" placeholder="Sem limite">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Salvar Orçamentos</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Backup & Import Area -->
+                <div class="glass-card style-margin-top">
+                    <div class="card-header">
+                        <h4>Gerenciamento de Dados e Backup</h4>
+                    </div>
+                    <div class="backup-actions">
+                        <div class="backup-group">
+                            <h5>Exportar</h5>
+                            <p>Exporte todos os seus dados locais para arquivos individuais ou um arquivo completo de backup.</p>
+                            <div class="btn-group">
+                                <button class="btn btn-secondary" type="button" id="btn-export-json"><i data-lucide="download"></i> Backup Completo (JSON)</button>
+                                <button class="btn btn-secondary" type="button" id="btn-export-csv-tx"><i data-lucide="file-text"></i> Exportar Transações (CSV)</button>
+                                <button class="btn btn-secondary" type="button" id="btn-export-csv-3d"><i data-lucide="file-text"></i> Exportar Vendas (CSV)</button>
+                            </div>
+                        </div>
+                        <div class="backup-group">
+                            <h5>Configurar Sincronização Cloud</h5>
+                            <p>Gerencie o token de acesso do GitHub utilizado para carregar e salvar seus dados na nuvem.</p>
+                            <div class="btn-group">
+                                <button class="btn btn-primary" type="button" id="btn-configure-github-btn"><i data-lucide="github"></i> Credenciais do GitHub</button>
+                                <button class="btn btn-secondary" type="button" id="btn-remove-github-btn" style="border-color: rgba(244, 63, 94, 0.2); color: var(--accent-rose);"><i data-lucide="log-out"></i> Desconectar GitHub</button>
+                            </div>
+                        </div>
+                        <div class="backup-group">
+                            <h5 class="red">Limpar Tudo</h5>
+                            <p>Exclui permanentemente todos os dados armazenados nesta máquina. Esta ação não pode ser desfeita.</p>
+                            <button class="btn btn-danger" type="button" id="btn-reset-app"><i data-lucide="trash-2"></i> Limpar Todo o Banco de Dados</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- MODAL: Add/Edit Transaction -->
+    <div class="modal-overlay" id="modal-transaction">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modal-tx-title">Novo Lançamento</h3>
+                <button class="close-modal-btn" id="btn-close-modal-tx">&times;</button>
+            </div>
+            <form id="tx-form">
+                <input type="hidden" id="tx-id">
+                <div class="form-group">
+                    <label for="tx-date">Data</label>
+                    <input type="date" id="tx-date" required>
+                </div>
+                <div class="form-group">
+                    <label for="tx-desc">Descrição</label>
+                    <input type="text" id="tx-desc" placeholder="Ex: Mercado da semana" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="tx-type">Tipo</label>
+                        <select id="tx-type" required>
+                            <option value="expense">Despesa</option>
+                            <option value="income">Receita</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="tx-value">Valor</label>
+                        <input type="number" id="tx-value" min="0.01" step="0.01" placeholder="0,00" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="tx-category">Categoria</label>
+                        <select id="tx-category" required>
+                            <option value="Alimentação">Alimentação</option>
+                            <option value="Moradia">Moradia</option>
+                            <option value="Transporte">Transporte</option>
+                            <option value="Lazer">Lazer</option>
+                            <option value="Saúde">Saúde</option>
+                            <option value="Investimento">Investimento</option>
+                            <option value="Venda 3D">Venda 3D</option>
+                            <option value="Venda Geral">Venda Geral (Produtos)</option>
+                            <option value="Serviços">Serviços Prestados</option>
+                            <option value="Insumos 3D">Insumos</option>
+                            <option value="Outros">Outros</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="tx-account">Conta/Carteira</label>
+                        <select id="tx-account" required>
+                            <option value="Conta Corrente">Conta Corrente</option>
+                            <option value="Poupança">Poupança</option>
+                            <option value="Cartão de Crédito">Cartão de Crédito</option>
+                            <option value="Dinheiro">Dinheiro</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="tx-status">Status</label>
+                    <select id="tx-status" required>
+                        <option value="Pago">Confirmado/Pago</option>
+                        <option value="Pendente">Pendente</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-tx">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Confirmar Lançamento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Add/Edit Investment Asset -->
+    <div class="modal-overlay" id="modal-asset">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modal-asset-title">Novo Ativo Financeiro</h3>
+                <button class="close-modal-btn" id="btn-close-modal-asset">&times;</button>
+            </div>
+            <form id="asset-form">
+                <input type="hidden" id="asset-id">
+                <div class="form-group">
+                    <label for="ast-name">Nome do Ativo (Ticker/Descrição)</label>
+                    <input type="text" id="ast-name" placeholder="Ex: PETR4, BTC, Tesouro IPCA" required>
+                </div>
+                <div class="form-group">
+                    <label for="ast-class">Classe de Ativo</label>
+                    <select id="ast-class" required>
+                        <option value="Renda Fixa">Renda Fixa</option>
+                        <option value="Ações">Ações</option>
+                        <option value="FIIs">Fundos Imobiliários (FIIs)</option>
+                        <option value="Cripto">Criptomoedas</option>
+                        <option value="Internacional">Investimentos Internacionais</option>
+                        <option value="Outros">Outros</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ast-quantity">Quantidade</label>
+                        <input type="number" id="ast-quantity" min="0.00000001" step="any" placeholder="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="ast-buy-price">Preço Médio de Compra</label>
+                        <input type="number" id="ast-buy-price" min="0.0001" step="any" placeholder="0,00" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="ast-curr-price">Preço Atual de Mercado</label>
+                    <input type="number" id="ast-curr-price" min="0.0001" step="any" placeholder="0,00" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-asset">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Ativo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Add/Edit Order -->
+    <div class="modal-overlay" id="modal-order">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modal-order-title">Novo Pedido Geral / Serviço</h3>
+                <button class="close-modal-btn" id="btn-close-modal-order">&times;</button>
+            </div>
+            <form id="order-form">
+                <input type="hidden" id="order-id">
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ord-type">Tipo de Pedido/Venda</label>
+                        <select id="ord-type" required>
+                            <option value="3D">Impressão 3D</option>
+                            <option value="Produto">Produto Geral</option>
+                            <option value="Serviço">Serviço Prestado</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="ord-client">Nome do Cliente</label>
+                        <input type="text" id="ord-client" placeholder="Ex: João da Silva" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="ord-model">Modelo / Produto / Serviço</label>
+                    <input type="text" id="ord-model" placeholder="Ex: Action Figure Goku / Consultoria TI" required>
+                </div>
+
+                <!-- Linha específica de dados (Peso/Tempo) -->
+                <div class="form-row" id="ord-dynamic-row">
+                    <div class="form-group" id="group-ord-weight">
+                        <label for="ord-weight" id="label-ord-weight">Peso Final (gramas)</label>
+                        <input type="number" id="ord-weight" min="0" step="any" placeholder="0">
+                    </div>
+                    <div class="form-group" id="group-ord-time">
+                        <label for="ord-time" id="label-ord-time">Tempo de Trabalho (horas)</label>
+                        <input type="number" id="ord-time" min="0" step="any" placeholder="0">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ord-cost">Custo Total de Produção/Base</label>
+                        <input type="number" id="ord-cost" min="0" step="any" placeholder="0,00" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="ord-price">Preço Cobrado do Cliente</label>
+                        <input type="number" id="ord-price" min="0" step="any" placeholder="0,00" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ord-status">Status do Pedido</label>
+                        <select id="ord-status" required>
+                            <option value="Orçamento">Orçamento</option>
+                            <option value="Na Fila">Na Fila</option>
+                            <option value="Execução">Em Execução</option>
+                            <option value="Acabamento">Acabamento</option>
+                            <option value="Pronto para Entrega">Pronto para Entrega / Concluído</option>
+                            <option value="Entregue">Entregue / Finalizado</option>
+                            <option value="Cancelado">Cancelado</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="ord-paid">Pagamento</label>
+                        <select id="ord-paid" required>
+                            <option value="Não Pago">Pendente (Não Pago)</option>
+                            <option value="Pago">Pago</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-order-modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Pedido</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: GitHub PAT Sync Config -->
+    <div class="modal-overlay" id="modal-github">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Sincronização Nuvem (GitHub)</h3>
+                <button class="close-modal-btn" id="btn-close-modal-gh">&times;</button>
+            </div>
+            <form id="gh-form">
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.2rem;">
+                    Insira suas credenciais do GitHub para sincronizar os dados entre seu computador e celular automaticamente.
+                </p>
+                <div class="form-group">
+                    <label for="gh-token">GitHub Personal Access Token (PAT)</label>
+                    <input type="password" id="gh-token" placeholder="ghp_..." required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="gh-owner">Usuário (GitHub)</label>
+                        <input type="text" id="gh-owner" value="brunoserra123" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="gh-repo">Repositório</label>
+                        <input type="text" id="gh-repo" value="planilha-financeira-inteligente" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-gh">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar e Sincronizar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="app.js"></script>
+</body>
+</html>
