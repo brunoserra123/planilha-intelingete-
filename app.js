@@ -305,7 +305,7 @@ async function attemptUnlock() {
 async function fetchFromGitHubRAW() {
     const token = localStorage.getItem('gh_token');
     const owner = localStorage.getItem('gh_owner') || 'brunoserra123';
-    const repo = localStorage.getItem('gh_repo') || 'planilha-financeira-inteligente';
+    const repo = localStorage.getItem('gh_repo') || 'planilha-intelingete-';
     if (!token) return null;
 
     const path = "dados_financeiros.json";
@@ -1460,7 +1460,7 @@ async function syncWithGitHub() {
 
     const token = localStorage.getItem('gh_token');
     const owner = localStorage.getItem('gh_owner') || 'brunoserra123';
-    const repo = localStorage.getItem('gh_repo') || 'planilha-financeira-inteligente';
+    const repo = localStorage.getItem('gh_repo') || 'planilha-intelingete-';
 
     if (!token) {
         openGitHubModal();
@@ -1543,7 +1543,7 @@ async function syncWithGitHub() {
 async function loadFromGitHub() {
     const token = localStorage.getItem('gh_token');
     const owner = localStorage.getItem('gh_owner') || 'brunoserra123';
-    const repo = localStorage.getItem('gh_repo') || 'planilha-financeira-inteligente';
+    const repo = localStorage.getItem('gh_repo') || 'planilha-intelingete-';
 
     if (!token || !userPassword) return;
 
@@ -1592,7 +1592,7 @@ function openGitHubModal() {
     const modal = document.getElementById('modal-github');
     document.getElementById('gh-token').value = localStorage.getItem('gh_token') || '';
     document.getElementById('gh-owner').value = localStorage.getItem('gh_owner') || 'brunoserra123';
-    document.getElementById('gh-repo').value = localStorage.getItem('gh_repo') || 'planilha-financeira-inteligente';
+    document.getElementById('gh-repo').value = localStorage.getItem('gh_repo') || 'planilha-intelingete-';
     modal.classList.add('active');
 }
 
