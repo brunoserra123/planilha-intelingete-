@@ -80,6 +80,11 @@
                 <button class="nav-item" data-target="tab-settings">
                     <i data-lucide="settings"></i>
                     <span>Configurações</span>
+                </button>
+                <button class="nav-item" data-target="tab-filaments">
+                    <i data-lucide="box"></i>
+                    <span>Filamentos</span>
+                </button>
             </nav>
 
             <!-- Mobile Tab Dropdown Selector -->
@@ -89,6 +94,7 @@
                     <option value="tab-transactions">💸 Transações</option>
                     <option value="tab-investments">📈 Investimentos</option>
                     <option value="tab-sales">🛍️ Vendas & Serviços</option>
+                    <option value="tab-filaments">📦 Filamentos</option>
                     <option value="tab-settings">⚙️ Configurações</option>
                 </select>
             </div>
@@ -487,6 +493,34 @@
                     </div>
                 </div>
             </section>
+            <!-- Tab: Filamentos -->
+            <section class="tab-content" id="tab-filaments">
+                <div class="card card-wide">
+                    <div class="card-header-flex">
+                        <h3>Gestão de Filamentos</h3>
+                        <button class="btn btn-primary btn-sm" id="btn-add-filament">
+                            <i data-lucide="plus"></i> Novo Filamento
+                        </button>
+                    </div>
+                    
+                    <div class="table-container">
+                        <table class="data-table" id="filaments-table">
+                            <thead>
+                                <tr>
+                                    <th>NOME / COR</th>
+                                    <th>DATA COMPRA</th>
+                                    <th>DATA FIM</th>
+                                    <th>DURAÇÃO</th>
+                                    <th>STATUS</th>
+                                    <th class="actions-col">AÇÕES</th>
+                                </tr>
+                            </thead>
+                            <tbody id="filaments-list">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
 
             <!-- Tab: Settings -->
             <section class="tab-content" id="tab-settings">
@@ -806,6 +840,48 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" id="btn-cancel-order-modal">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Salvar Pedido</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Adicionar / Editar Filamento -->
+    <div class="modal-overlay" id="modal-filament">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modal-filament-title">Novo Filamento</h3>
+                <button class="close-modal-btn" id="btn-close-filament-modal">&times;</button>
+            </div>
+            <form id="filament-form">
+                <input type="hidden" id="fil-id">
+                
+                <div class="form-group">
+                    <label for="fil-name">Nome / Cor do Filamento</label>
+                    <input type="text" id="fil-name" placeholder="Ex: PLA Azul Creality" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="fil-buy-date">Data da Compra / Início</label>
+                        <input type="date" id="fil-buy-date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="fil-end-date">Data que Acabou (Opcional)</label>
+                        <input type="date" id="fil-end-date">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="fil-status">Status</label>
+                    <select id="fil-status" required>
+                        <option value="Em Uso">Em Uso</option>
+                        <option value="Acabou">Acabou</option>
+                    </select>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-filament-modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Filamento</button>
                 </div>
             </form>
         </div>

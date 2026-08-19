@@ -7,6 +7,7 @@ let state = {
     transactions: [],
     assets: [],
     orders3d: [], // Armazena todos os pedidos (3D, Produto e Serviço)
+    filaments: [], // Armazena estoque de filamentos
     settings: {
         currency: 'BRL',
         serviceHour: 50.00,    // R$ por hora de trabalho padrão
@@ -45,149 +46,9 @@ const currencyLocales = {
 // 1. Dados Iniciais de Demonstração (Se Vazio)
 // ==========================================================================
 function loadInitialMockData() {
-    const now = new Date();
-    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    
-    state.transactions = [
-        {
-            id: 'tx-1',
-            date: `${currentMonthStr}-01`,
-            description: 'Salário Principal CLT',
-            type: 'income',
-            value: 4800.00,
-            category: 'Outros',
-            account: 'Conta Corrente',
-            status: 'Pago'
-        },
-        {
-            id: 'tx-2',
-            date: `${currentMonthStr}-05`,
-            description: 'Aluguel + Condomínio',
-            type: 'expense',
-            value: 1250.00,
-            category: 'Moradia',
-            account: 'Conta Corrente',
-            status: 'Pago'
-        },
-        {
-            id: 'tx-3',
-            date: `${currentMonthStr}-07`,
-            description: 'Supermercado Semanal',
-            type: 'expense',
-            value: 580.00,
-            category: 'Alimentação',
-            account: 'Cartão de Crédito',
-            status: 'Pago'
-        },
-        {
-            id: 'tx-4',
-            date: `${currentMonthStr}-10`,
-            description: 'Combustível Automóvel',
-            type: 'expense',
-            value: 180.00,
-            category: 'Transporte',
-            account: 'Cartão de Crédito',
-            status: 'Pago'
-        },
-        {
-            id: 'tx-5',
-            date: `${currentMonthStr}-12`,
-            description: 'Restaurante Fim de Semana',
-            type: 'expense',
-            value: 150.00,
-            category: 'Lazer',
-            account: 'Cartão de Crédito',
-            status: 'Pago'
-        },
-        {
-            id: 'tx-6',
-            date: `${currentMonthStr}-04`,
-            description: 'Compra de Filamento PLA Azul 3D',
-            type: 'expense',
-            value: 125.00,
-            category: 'Insumos 3D',
-            account: 'Cartão de Crédito',
-            status: 'Pago'
-        },
-        {
-            id: 'tx-7',
-            date: `${currentMonthStr}-14`,
-            description: 'Venda 3D: Action Figure Yoda - Cliente Arthur',
-            type: 'income',
-            value: 280.00,
-            category: 'Venda 3D',
-            account: 'Conta Corrente',
-            status: 'Pago'
-        },
-        {
-            id: 'tx-8',
-            date: `${currentMonthStr}-15`,
-            description: 'Serviço: Modelagem 3D Logotipo - Cliente Carla',
-            type: 'income',
-            value: 250.00,
-            category: 'Serviços',
-            account: 'Conta Corrente',
-            status: 'Pago'
-        }
-    ];
-
-    state.assets = [
-        { id: 'ast-1', name: 'PETR4', class: 'Ações', quantity: 60, buyPrice: 32.50, currentPrice: 38.45 },
-        { id: 'ast-2', name: 'MXRF11', class: 'FIIs', quantity: 150, buyPrice: 9.75, currentPrice: 10.12 },
-        { id: 'ast-3', name: 'BTC (Bitcoin)', class: 'Cripto', quantity: 0.005, buyPrice: 275000.00, currentPrice: 325000.00 },
-        { id: 'ast-4', name: 'Tesouro Selic 2029', class: 'Renda Fixa', quantity: 1, buyPrice: 13500.00, currentPrice: 14250.00 }
-    ];
-
-    state.orders3d = [
-        {
-            id: 'ord-1',
-            type: '3D',
-            client: 'Arthur Pendragon',
-            model: 'Espada Excalibur Metálica 1:1',
-            weight: 850,
-            time: 42,
-            cost: 165.40,
-            price: 450.00,
-            status: 'Imprimindo',
-            paid: 'Não Pago'
-        },
-        {
-            id: 'ord-2',
-            type: '3D',
-            client: 'Guilherme Reis',
-            model: 'Kit Miniaturas D&D Monstros (x5)',
-            weight: 75,
-            time: 6,
-            cost: 17.50,
-            price: 85.00,
-            status: 'Entregue',
-            paid: 'Pago'
-        },
-        {
-            id: 'ord-3',
-            type: 'Serviço',
-            client: 'Carla Mendes',
-            model: 'Modelagem CAD & Design Suporte Headset',
-            weight: 0,
-            time: 5,
-            cost: 0.00,
-            price: 250.00,
-            status: 'Entregue',
-            paid: 'Pago'
-        },
-        {
-            id: 'ord-4',
-            type: 'Produto',
-            client: 'Renata Lins',
-            model: 'Luminária LED Decorativa Montada',
-            weight: 0,
-            time: 0,
-            cost: 48.50,
-            price: 120.00,
-            status: 'Na Fila',
-            paid: 'Não Pago'
-        }
-    ];
+    state.transactions = [];
+    state.assets = [];
+    state.orders3d = [];
 }
 
 // Salvar Dados Locais (Encriptados)
@@ -405,6 +266,8 @@ function switchTab(targetId) {
         renderPrinting3D();
     } else if (targetId === 'tab-transactions') {
         renderTransactions();
+    } else if (targetId === 'tab-filaments') {
+        renderFilaments();
     }
 }
 
@@ -1960,6 +1823,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('asset-form').addEventListener('submit', saveAsset);
 
+    // Modal Filamentos
+    document.getElementById('btn-add-filament').addEventListener('click', () => openFilamentModal(null));
+    document.getElementById('btn-close-filament-modal').addEventListener('click', () => {
+        document.getElementById('modal-filament').classList.remove('active');
+    });
+    document.getElementById('btn-cancel-filament-modal').addEventListener('click', () => {
+        document.getElementById('modal-filament').classList.remove('active');
+    });
+    document.getElementById('filament-form').addEventListener('submit', saveFilament);
+
     // Modal Pedidos
     document.getElementById('btn-add-order-direct').addEventListener('click', () => openOrderModal(null));
     document.getElementById('btn-close-modal-order').addEventListener('click', () => {
@@ -2055,5 +1928,103 @@ function updateDateDisplay() {
         // Capitalizar a primeira letra
         dateStr = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
         el.innerText = dateStr;
+    }
+}
+
+// ==========================================================================
+// Gestão de Filamentos
+// ==========================================================================
+function renderFilaments() {
+    const tbody = document.getElementById('filaments-list');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    
+    let filaments = state.filaments || [];
+    
+    if (filaments.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Nenhum filamento cadastrado.</td></tr>';
+        return;
+    }
+    
+    filaments.sort((a, b) => new Date(b.buyDate) - new Date(a.buyDate));
+    
+    filaments.forEach(f => {
+        let durationStr = '-';
+        if (f.buyDate && f.endDate && f.status === 'Acabou') {
+            const start = new Date(f.buyDate);
+            const end = new Date(f.endDate);
+            const diffTime = Math.abs(end - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+            durationStr = `${diffDays} dias`;
+        }
+        
+        const badgeStatus = f.status === 'Em Uso' ? 'badge-success' : 'badge-pending';
+        
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><strong>${escapeHTML(f.name)}</strong></td>
+            <td>${formatDate(f.buyDate)}</td>
+            <td>${f.endDate ? formatDate(f.endDate) : '-'}</td>
+            <td>${durationStr}</td>
+            <td><span class="badge ${badgeStatus}">${f.status}</span></td>
+            <td class="actions-col">
+                <button class="btn-icon" onclick="openFilamentModal('${f.id}')" title="Editar"><i data-lucide="edit-2"></i></button>
+                <button class="btn-icon red" onclick="deleteFilament('${f.id}')" title="Excluir"><i data-lucide="trash-2"></i></button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+    lucide.createIcons();
+}
+
+function openFilamentModal(id) {
+    document.getElementById('filament-form').reset();
+    if (id) {
+        document.getElementById('modal-filament-title').innerText = 'Editar Filamento';
+        const fil = (state.filaments || []).find(f => f.id === id);
+        if (fil) {
+            document.getElementById('fil-id').value = fil.id;
+            document.getElementById('fil-name').value = fil.name;
+            document.getElementById('fil-buy-date').value = fil.buyDate;
+            document.getElementById('fil-end-date').value = fil.endDate || '';
+            document.getElementById('fil-status').value = fil.status;
+        }
+    } else {
+        document.getElementById('modal-filament-title').innerText = 'Novo Filamento';
+        document.getElementById('fil-id').value = '';
+    }
+    document.getElementById('modal-filament').classList.add('active');
+}
+
+function saveFilament(e) {
+    e.preventDefault();
+    const id = document.getElementById('fil-id').value;
+    const fil = {
+        id: id || 'fil-' + Date.now(),
+        name: document.getElementById('fil-name').value,
+        buyDate: document.getElementById('fil-buy-date').value,
+        endDate: document.getElementById('fil-end-date').value,
+        status: document.getElementById('fil-status').value
+    };
+
+    if (!state.filaments) state.filaments = [];
+    
+    if (id) {
+        const index = state.filaments.findIndex(f => f.id === id);
+        if (index > -1) state.filaments[index] = fil;
+    } else {
+        state.filaments.push(fil);
+    }
+    
+    saveState();
+    renderFilaments();
+    document.getElementById('modal-filament').classList.remove('active');
+}
+
+function deleteFilament(id) {
+    if (confirm('Tem certeza que deseja excluir este filamento?')) {
+        state.filaments = (state.filaments || []).filter(f => f.id !== id);
+        saveState();
+        renderFilaments();
     }
 }

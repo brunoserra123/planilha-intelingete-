@@ -2,7 +2,7 @@
 chcp 65001 >nul
 color 0A
 echo ====================================
-echo   SINCRO-ROBÔ FINANCEIRO 🤖
+echo   SINCRO-ROBO FINANCEIRO
 echo ====================================
 echo.
 echo Enviando sua planilha e configurações para o GitHub Pages...
@@ -35,7 +35,7 @@ git push origin main
 if %errorlevel% equ 0 (
     echo.
     echo ==========================================================
-    echo 🎉 SUCESSO! Sua planilha está publicada e no ar!
+    echo SUCESSO! Sua planilha está publicada e no ar!
     echo.
     echo Link de Acesso:
     echo https://brunoserra123.github.io/planilha-intelingete-/
@@ -43,7 +43,7 @@ if %errorlevel% equ 0 (
 ) else (
     echo.
     echo ==========================================================
-    echo ❌ ERRO AO ENVIAR PARA O GITHUB!
+    echo ERRO AO ENVIAR PARA O GITHUB!
     echo.
     echo Dicas:
     echo 1. Certifique-se de ter criado o repositório em seu GitHub:
