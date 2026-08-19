@@ -17,8 +17,16 @@ Siga as instruções no arquivo passo_a_passo.md para colar cada bloco em seu re
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('FinSmart 🤖')
-    .addItem('Abrir Calculadora', 'showSidebar')
-    .addItem('Sincronizar Pedidos Pagos', 'syncPaidOrdersManually')
+    .addItem('Abrir Calculadora ⚙️', 'showSidebar')
+    .addItem('Inicializar Estrutura da Planilha 🛠️', 'initializeSpreadsheet')
+    .addItem('Sincronizar Pedidos Pagos 💸', 'syncPaidOrdersManually')
+    .addSeparator()
+    .addItem('Enviar Dados para o Site (Nuvem) 🤖', 'syncToGitHub')
+    .addItem('Puxar Dados do Site (Nuvem) 🤖', 'pullDataFromGitHub')
+    .addSeparator()
+    .addItem('Configurar Credenciais do GitHub ⚙️', 'promptCredentials')
+    .addItem('Importar Credenciais do Drive 📂', 'importCredentialsFromDrive')
+    .addItem('Limpar Credenciais Salvas ❌', 'clearCredentials')
     .addToUi();
 }
 
@@ -199,6 +207,681 @@ function syncPaidOrdersManually() {
   SpreadsheetApp.getUi().alert("🤖 Sincronização concluída! Lançamentos processados: " + syncCount);
 }
 
+// ==========================================================================
+// INTEGRAÇÃO COM SITE (GITHUB & CRIPTOGRAFIA AES)
+// ==========================================================================
+
+var CryptoJS;
+
+/**
+ * Inicializa a biblioteca CryptoJS na execução atual (usando cache).
+ */
+function initCryptoJS() {
+  if (typeof CryptoJS !== 'undefined') return;
+  
+  // Shim global para evitar o erro "Native crypto module could not be used to get secure random number" no GAS
+  if (typeof crypto === 'undefined') {
+    this.crypto = {
+      getRandomValues: function(array) {
+        for (var i = 0; i < array.length; i++) {
+          array[i] = Math.floor(Math.random() * 4294967296);
+        }
+        return array;
+      }
+    };
+  } else if (typeof crypto.getRandomValues === 'undefined') {
+    crypto.getRandomValues = function(array) {
+      for (var i = 0; i < array.length; i++) {
+        array[i] = Math.floor(Math.random() * 4294967296);
+      }
+      return array;
+    };
+  }
+
+  const cache = CacheService.getScriptCache();
+  let code = cache.get('cryptojs_code');
+  if (!code) {
+    code = UrlFetchApp.fetch('https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js').getContentText();
+    try {
+      cache.put('cryptojs_code', code, 21600); // 6 horas
+    } catch (e) {
+      // Ignora erro de escrita no cache
+    }
+  }
+  eval(code);
+}
+
+/**
+ * Solicita e salva credenciais do GitHub e a Senha no PropertiesService.
+ */
+function promptCredentials() {
+  const ui = SpreadsheetApp.getUi();
+  const userProps = PropertiesService.getUserProperties();
+  
+  const tokenPrompt = ui.prompt('FinSmart - Configuração GitHub', 'Cole o seu GitHub Personal Access Token (PAT):', ui.ButtonSet.OK_CANCEL);
+  if (tokenPrompt.getSelectedButton() !== ui.Button.OK) return false;
+  const token = tokenPrompt.getResponseText().trim();
+  
+  const ownerPrompt = ui.prompt('FinSmart - Configuração GitHub', 'Digite o usuário do GitHub (Ex: brunoserra123):', ui.ButtonSet.OK_CANCEL);
+  if (ownerPrompt.getSelectedButton() !== ui.Button.OK) return false;
+  const owner = ownerPrompt.getResponseText().trim();
+  
+  const repoPrompt = ui.prompt('FinSmart - Configuração GitHub', 'Digite o nome do repositório (Ex: planilha-intelingete-):', ui.ButtonSet.OK_CANCEL);
+  if (repoPrompt.getSelectedButton() !== ui.Button.OK) return false;
+  const repo = repoPrompt.getResponseText().trim();
+  
+  const passPrompt = ui.prompt('FinSmart - Criptografia', 'Digite a sua senha de descriptografia do FinSmart:', ui.ButtonSet.OK_CANCEL);
+  if (passPrompt.getSelectedButton() !== ui.Button.OK) return false;
+  const password = passPrompt.getResponseText().trim();
+  
+  if (!token || !owner || !repo || !password) {
+    ui.alert('❌ Todas as informações são obrigatórias.');
+    return false;
+  }
+  
+  userProps.setProperty('GH_TOKEN', token);
+  userProps.setProperty('GH_OWNER', owner);
+  userProps.setProperty('GH_REPO', repo);
+  userProps.setProperty('FINSMART_PASS', password);
+  
+  ui.alert('🤖 Credenciais salvas com sucesso localmente em sua conta Google!');
+  return true;
+}
+
+/**
+ * Remove as credenciais armazenadas.
+ */
+function clearCredentials() {
+  const ui = SpreadsheetApp.getUi();
+  const userProps = PropertiesService.getUserProperties();
+  userProps.deleteProperty('GH_TOKEN');
+  userProps.deleteProperty('GH_OWNER');
+  userProps.deleteProperty('GH_REPO');
+  userProps.deleteProperty('FINSMART_PASS');
+  ui.alert('🤖 Credenciais do GitHub e Senha de criptografia removidas com sucesso.');
+}
+
+/**
+ * Compila todas as abas da planilha em um único objeto JSON de Estado.
+ */
+function compileSpreadsheetData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // 1. Transactions
+  const transactions = [];
+  const txSheet = ss.getSheetByName('Transações');
+  if (txSheet) {
+    const lastRow = txSheet.getLastRow();
+    if (lastRow > 1) {
+      const values = txSheet.getRange(2, 1, lastRow - 1, 7).getValues();
+      values.forEach((row, i) => {
+        if (row[1]) {
+          const dateVal = row[0];
+          let dateStr = '';
+          if (dateVal instanceof Date) {
+            dateStr = Utilities.formatDate(dateVal, ss.getSpreadsheetTimeZone(), "yyyy-MM-dd");
+          } else {
+            dateStr = String(dateVal);
+          }
+          transactions.push({
+            id: 'tx-' + (i + 1),
+            date: dateStr,
+            description: String(row[1]),
+            category: String(row[2]),
+            account: String(row[3]),
+            type: String(row[4]).toLowerCase() === 'despesa' ? 'expense' : 'income',
+            value: parseFloat(row[5]) || 0,
+            status: String(row[6])
+          });
+        }
+      });
+    }
+  }
+
+  // 2. Assets
+  const assets = [];
+  const astSheet = ss.getSheetByName('Investimentos');
+  if (astSheet) {
+    const lastRow = astSheet.getLastRow();
+    if (lastRow > 1) {
+      const values = astSheet.getRange(2, 1, lastRow - 1, 5).getValues();
+      values.forEach((row, i) => {
+        if (row[0]) {
+          assets.push({
+            id: 'ast-' + (i + 1),
+            name: String(row[0]),
+            class: String(row[1]),
+            quantity: parseFloat(row[2]) || 0,
+            buyPrice: parseFloat(row[3]) || 0,
+            currentPrice: parseFloat(row[4]) || 0
+          });
+        }
+      });
+    }
+  }
+
+  // 3. Orders
+  const orders3d = [];
+  const salesSheet = ss.getSheetByName('Vendas e Serviços');
+  if (salesSheet) {
+    const lastRow = salesSheet.getLastRow();
+    if (lastRow > 1) {
+      const values = salesSheet.getRange(2, 1, lastRow - 1, 10).getValues();
+      values.forEach(row => {
+        if (row[0]) {
+          orders3d.push({
+            id: String(row[0]),
+            type: String(row[1]),
+            client: String(row[2]),
+            model: String(row[3]),
+            weight: parseFloat(row[4]) || 0,
+            time: parseFloat(row[5]) || 0,
+            cost: parseFloat(row[6]) || 0,
+            price: parseFloat(row[7]) || 0,
+            status: String(row[8]),
+            paid: String(row[9])
+          });
+        }
+      });
+    }
+  }
+
+  // 4. Settings & Budgets
+  const settingsSheet = ss.getSheetByName('Configurações');
+  const settings = {
+    currency: 'BRL',
+    serviceHour: 50.00,
+    filamentPrice: 120.00,
+    energyKwh: 0.85,
+    printerPower: 150,
+    deprHour: 1.50
+  };
+  const budgets = {
+    Alimentação: 800.00,
+    Moradia: 1500.00,
+    Transporte: 300.00,
+    Lazer: 400.00,
+    Saúde: 200.00,
+    "Insumos 3D": 250.00,
+    Outros: 300.00
+  };
+
+  if (settingsSheet) {
+    settings.serviceHour = parseFloat(settingsSheet.getRange('B2').getValue()) || 50.00;
+    settings.filamentPrice = parseFloat(settingsSheet.getRange('B3').getValue()) || 120.00;
+    settings.energyKwh = parseFloat(settingsSheet.getRange('B4').getValue()) || 0.85;
+    settings.printerPower = parseInt(settingsSheet.getRange('B5').getValue()) || 150;
+    settings.deprHour = parseFloat(settingsSheet.getRange('B6').getValue()) || 1.50;
+
+    const lastRow = settingsSheet.getLastRow();
+    if (lastRow >= 9) {
+      const budgetData = settingsSheet.getRange(9, 1, lastRow - 8, 2).getValues();
+      budgetData.forEach(row => {
+        const cat = String(row[0]).trim();
+        const val = parseFloat(row[1]);
+        if (cat && !isNaN(val)) {
+          budgets[cat] = val;
+        }
+      });
+    }
+  }
+
+  return {
+    transactions: transactions,
+    assets: assets,
+    orders3d: orders3d,
+    settings: settings,
+    budgets: budgets
+  };
+}
+
+/**
+ * Sobrescreve as abas da planilha com o objeto de estado recebido do site.
+ */
+function updateSpreadsheetFromState(stateObj) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // 1. Transactions
+  let txSheet = ss.getSheetByName('Transações');
+  if (!txSheet) {
+    txSheet = ss.insertSheet('Transações');
+  }
+  txSheet.clearContents();
+  txSheet.appendRow(['Data', 'Descrição', 'Categoria', 'Conta', 'Tipo', 'Valor', 'Status']);
+  if (stateObj.transactions && stateObj.transactions.length > 0) {
+    const rows = stateObj.transactions.map(t => [
+      t.date,
+      t.description,
+      t.category,
+      t.account,
+      t.type === 'expense' ? 'Despesa' : 'Receita',
+      t.value,
+      t.status
+    ]);
+    txSheet.getRange(2, 1, rows.length, 7).setValues(rows);
+  }
+
+  // 2. Assets
+  let astSheet = ss.getSheetByName('Investimentos');
+  if (!astSheet) {
+    astSheet = ss.insertSheet('Investimentos');
+  }
+  astSheet.clearContents();
+  astSheet.appendRow(['Ativo', 'Classe', 'Quantidade', 'Preço Médio', 'Preço Atual', 'Total Investido', 'Valor Atual', 'Rendimento (R$)', 'Rendimento (%)']);
+  if (stateObj.assets && stateObj.assets.length > 0) {
+    const rows = stateObj.assets.map(a => [
+      a.name,
+      a.class,
+      a.quantity,
+      a.buyPrice,
+      a.currentPrice,
+      '', '', '', ''
+    ]);
+    astSheet.getRange(2, 1, rows.length, 9).setValues(rows);
+    
+    // Insere formulas
+    for (let i = 2; i <= rows.length + 1; i++) {
+      astSheet.getRange('F' + i).setFormula('=C' + i + '*D' + i);
+      astSheet.getRange('G' + i).setFormula('=C' + i + '*E' + i);
+      astSheet.getRange('H' + i).setFormula('=G' + i + '-F' + i);
+      astSheet.getRange('I' + i).setFormula('=H' + i + '/F' + i);
+    }
+  }
+
+  // 3. Orders
+  let salesSheet = ss.getSheetByName('Vendas e Serviços');
+  if (!salesSheet) {
+    salesSheet = ss.insertSheet('Vendas e Serviços');
+  }
+  salesSheet.clearContents();
+  salesSheet.appendRow(['ID', 'Tipo', 'Cliente', 'Item/Modelo', 'Peso (g)', 'Tempo (h)', 'Custo Base', 'Preço de Venda', 'Status', 'Pagamento']);
+  if (stateObj.orders3d && stateObj.orders3d.length > 0) {
+    const rows = stateObj.orders3d.map(o => [
+      o.id || ('ord-' + Date.now()),
+      o.type || '3D',
+      o.client,
+      o.model,
+      o.weight || 0,
+      o.time || 0,
+      o.cost || 0,
+      o.price || 0,
+      o.status || 'Na Fila',
+      o.paid || 'Pendente'
+    ]);
+    salesSheet.getRange(2, 1, rows.length, 10).setValues(rows);
+  }
+
+  // 4. Settings
+  let settingsSheet = ss.getSheetByName('Configurações');
+  if (!settingsSheet) {
+    settingsSheet = ss.insertSheet('Configurações');
+  }
+  
+  settingsSheet.getRange('A2').setValue('Valor/Hora Serviço');
+  settingsSheet.getRange('A3').setValue('Preço Filamento/Kg');
+  settingsSheet.getRange('A4').setValue('Custo kWh Energia');
+  settingsSheet.getRange('A5').setValue('Potência Impressora (W)');
+  settingsSheet.getRange('A6').setValue('Depreciação Impressora/h');
+  
+  const s = stateObj.settings || {};
+  settingsSheet.getRange('B2').setValue(s.serviceHour || 50.00);
+  settingsSheet.getRange('B3').setValue(s.filamentPrice || 120.00);
+  settingsSheet.getRange('B4').setValue(s.energyKwh || 0.85);
+  settingsSheet.getRange('B5').setValue(s.printerPower || 150);
+  settingsSheet.getRange('B6').setValue(s.deprHour || 1.50);
+
+  // budgets
+  settingsSheet.getRange('A8').setValue('Orçamentos');
+  settingsSheet.getRange('B8').setValue('Valor Limite');
+  
+  const lastRow = settingsSheet.getLastRow();
+  if (lastRow >= 9) {
+    settingsSheet.getRange(9, 1, lastRow - 8, 2).clearContents();
+  }
+  
+  const b = stateObj.budgets || {};
+  const budgetRows = Object.keys(b).map(cat => [cat, b[cat]]);
+  if (budgetRows.length > 0) {
+    settingsSheet.getRange(9, 1, budgetRows.length, 2).setValues(budgetRows);
+  }
+}
+
+/**
+ * Envia todos os dados da planilha criptografados para o GitHub (Botão Robô).
+ */
+function syncToGitHub() {
+  const ui = SpreadsheetApp.getUi();
+  const userProps = PropertiesService.getUserProperties();
+  
+  let token = userProps.getProperty('GH_TOKEN');
+  let owner = userProps.getProperty('GH_OWNER');
+  let repo = userProps.getProperty('GH_REPO');
+  let password = userProps.getProperty('FINSMART_PASS');
+  
+  if (!token || !owner || !repo || !password) {
+    const setupResult = promptCredentials();
+    if (!setupResult) {
+      ui.alert('❌ Sincronização cancelada: Credenciais ausentes.');
+      return;
+    }
+    token = userProps.getProperty('GH_TOKEN');
+    owner = userProps.getProperty('GH_OWNER');
+    repo = userProps.getProperty('GH_REPO');
+    password = userProps.getProperty('FINSMART_PASS');
+  }
+  
+  try {
+    // 1. Compila dados
+    const stateObj = compileSpreadsheetData();
+    const stateJson = JSON.stringify(stateObj);
+    
+    // 2. Criptografa
+    initCryptoJS();
+    const encryptedText = CryptoJS.AES.encrypt(stateJson, password).toString();
+    
+    // 3. Obtém SHA do GitHub para atualização
+    const path = 'dados_financeiros.json';
+    const apiUrl = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + path;
+    
+    let sha = null;
+    try {
+      const getRes = UrlFetchApp.fetch(apiUrl, {
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Accept': 'application/vnd.github.v3+json'
+        },
+        muteHttpExceptions: true
+      });
+      
+      if (getRes.getResponseCode() === 200) {
+        const fileInfo = JSON.parse(getRes.getContentText());
+        sha = fileInfo.sha;
+      }
+    } catch (e) {
+      // Ignora erro
+    }
+    
+    // 4. Codifica em base64 UTF-8 seguro
+    const blob = Utilities.newBlob(encryptedText, 'text/plain', 'utf-8');
+    const base64Data = Utilities.base64Encode(blob.getBytes());
+    
+    // 5. Envia via PUT
+    const payload = {
+      message: '🤖 Sincronização automática via Planilha Google',
+      content: base64Data
+    };
+    if (sha) {
+      payload.sha = sha;
+    }
+    
+    const putRes = UrlFetchApp.fetch(apiUrl, {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+    
+    if (putRes.getResponseCode() === 200 || putRes.getResponseCode() === 201) {
+      ui.alert('🎉 Nuvem Sincronizada!\n\nOs dados da sua planilha foram organizados, criptografados com criptografia militar AES e enviados ao seu repositório GitHub. O painel web já está totalmente atualizado.');
+    } else {
+      ui.alert('❌ Erro ao enviar dados ao GitHub: ' + putRes.getContentText());
+    }
+  } catch (err) {
+    ui.alert('❌ Erro na sincronização: ' + err.toString());
+  }
+}
+
+/**
+ * Puxa os dados criptografados do GitHub e atualiza a planilha.
+ */
+function pullDataFromGitHub() {
+  const ui = SpreadsheetApp.getUi();
+  const userProps = PropertiesService.getUserProperties();
+  
+  let token = userProps.getProperty('GH_TOKEN');
+  let owner = userProps.getProperty('GH_OWNER');
+  let repo = userProps.getProperty('GH_REPO');
+  let password = userProps.getProperty('FINSMART_PASS');
+  
+  if (!token || !owner || !repo || !password) {
+    const setupResult = promptCredentials();
+    if (!setupResult) {
+      ui.alert('❌ Operação cancelada: Credenciais ausentes.');
+      return;
+    }
+    token = userProps.getProperty('GH_TOKEN');
+    owner = userProps.getProperty('GH_OWNER');
+    repo = userProps.getProperty('GH_REPO');
+    password = userProps.getProperty('FINSMART_PASS');
+  }
+  
+  const confirmRes = ui.alert('Sobrescrever Planilha?', 'Tem certeza que deseja puxar os dados do site? Isso irá substituir permanentemente todos os dados das abas desta planilha pelos dados salvos na nuvem. Deseja continuar?', ui.ButtonSet.YES_NO);
+  if (confirmRes !== ui.Button.YES) return;
+  
+  try {
+    const path = 'dados_financeiros.json';
+    const apiUrl = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + path;
+    
+    const getRes = UrlFetchApp.fetch(apiUrl, {
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/vnd.github.v3+json'
+      },
+      muteHttpExceptions: true
+    });
+    
+    if (getRes.getResponseCode() !== 200) {
+      ui.alert('❌ Erro ao baixar dados do GitHub: ' + getRes.getContentText());
+      return;
+    }
+    
+    const fileInfo = JSON.parse(getRes.getContentText());
+    const decodedBytes = Utilities.base64Decode(fileInfo.content.replace(/\s/g, ''));
+    const decryptedTextRaw = Utilities.newBlob(decodedBytes).getDataAsString();
+    
+    initCryptoJS();
+    const bytes = CryptoJS.AES.decrypt(decryptedTextRaw, password);
+    const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
+    
+    if (!decryptedText) {
+      ui.alert('❌ Senha de criptografia incorreta ou dados corrompidos na nuvem.');
+      return;
+    }
+    
+    const stateObj = JSON.parse(decryptedText);
+    updateSpreadsheetFromState(stateObj);
+    
+    ui.alert('🎉 Planilha atualizada com sucesso com os dados baixados do site!');
+  } catch (err) {
+    ui.alert('❌ Erro ao sincronizar dados: ' + err.toString());
+  }
+}
+
+// ==========================================================================
+// ENDPOINTS WEB APP API (DO GET / DO POST)
+// ==========================================================================
+
+/**
+ * Endpoint GET para ler dados da planilha em tempo real.
+ */
+function doGet(e) {
+  try {
+    const data = compileSpreadsheetData();
+    return ContentService.createTextOutput(JSON.stringify({ success: true, data: data }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * Endpoint POST para salvar dados enviados pelo Dashboard Web na planilha.
+ */
+function doPost(e) {
+  try {
+    const postData = JSON.parse(e.postData.contents);
+    updateSpreadsheetFromState(postData);
+    return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Planilha atualizada com sucesso!' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * Cria e formata automaticamente todas as abas e cabeçalhos padrão do FinSmart.
+ */
+function initializeSpreadsheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  
+  const confirm = ui.alert('Inicializar Planilha', 'Isso criará as 5 abas necessárias (Dashboard, Transações, Investimentos, Vendas e Serviços, Configurações) com seus cabeçalhos e fórmulas padrão. Abas existentes não serão apagadas, mas novos cabeçalhos serão aplicados. Deseja continuar?', ui.ButtonSet.YES_NO);
+  if (confirm !== ui.Button.YES) return;
+
+  // 1. Aba Dashboard
+  let dashSheet = ss.getSheetByName('Dashboard');
+  if (!dashSheet) {
+    dashSheet = ss.insertSheet('Dashboard');
+  }
+  dashSheet.clear();
+  dashSheet.appendRow(['Métrica', 'Valor']);
+  dashSheet.appendRow(['Receitas Mês', '=SUMIF(Transações!E:E; "Receita"; Transações!F:F)']);
+  dashSheet.appendRow(['Despesas Mês', '=SUMIF(Transações!E:E; "Despesa"; Transações!F:F)']);
+  dashSheet.appendRow(['Saldo Líquido', '=B2-B3']);
+  dashSheet.appendRow(['Total Investido', '=SUM(Investimentos!G:G)']);
+  dashSheet.appendRow(['Total Vendas', '=SUM(\'Vendas e Serviços\'!H:H)']);
+  
+  // Formatar
+  dashSheet.getRange('A1:B1').setFontWeight('bold').setBackground('#0f172a').setFontColor('#ffffff');
+  dashSheet.getRange('B2:B6').setNumberFormat('R$ #,##0.00');
+
+  // 2. Aba Transações
+  let txSheet = ss.getSheetByName('Transações');
+  if (!txSheet) {
+    txSheet = ss.insertSheet('Transações');
+  }
+  if (txSheet.getLastRow() === 0) {
+    txSheet.appendRow(['Data', 'Descrição', 'Categoria', 'Conta', 'Tipo', 'Valor', 'Status']);
+  }
+  txSheet.getRange('A1:G1').setFontWeight('bold').setBackground('#0f172a').setFontColor('#ffffff');
+
+  // 3. Aba Investimentos
+  let invSheet = ss.getSheetByName('Investimentos');
+  if (!invSheet) {
+    invSheet = ss.insertSheet('Investimentos');
+  }
+  invSheet.clearContents();
+  invSheet.appendRow(['Ativo', 'Classe', 'Quantidade', 'Preço Médio', 'Preço Atual', 'Total Investido', 'Valor Atual', 'Rendimento (R$)', 'Rendimento (%)']);
+  invSheet.appendRow(['PETR4', 'Ações', 10, 32.50, '=GOOGLEFINANCE(A2)', '=C2*D2', '=C2*E2', '=G2-F2', '=H2/F2']);
+  
+  invSheet.getRange('A1:I1').setFontWeight('bold').setBackground('#0f172a').setFontColor('#ffffff');
+  invSheet.getRange('D2:H2').setNumberFormat('R$ #,##0.00');
+  invSheet.getRange('I2').setNumberFormat('0.00%');
+
+  // 4. Aba Vendas e Serviços
+  let salesSheet = ss.getSheetByName('Vendas e Serviços');
+  if (!salesSheet) {
+    salesSheet = ss.insertSheet('Vendas e Serviços');
+  }
+  if (salesSheet.getLastRow() === 0) {
+    salesSheet.appendRow(['ID', 'Tipo', 'Cliente', 'Item/Modelo', 'Peso (g)', 'Tempo (h)', 'Custo Base', 'Preço de Venda', 'Status', 'Pagamento']);
+  }
+  salesSheet.getRange('A1:J1').setFontWeight('bold').setBackground('#0f172a').setFontColor('#ffffff');
+
+  // 5. Aba Configurações
+  let configSheet = ss.getSheetByName('Configurações');
+  if (!configSheet) {
+    configSheet = ss.insertSheet('Configurações');
+  }
+  configSheet.clear();
+  configSheet.appendRow(['Parâmetro', 'Valor']);
+  configSheet.appendRow(['Valor/Hora Serviço', 50.00]);
+  configSheet.appendRow(['Preço Filamento/Kg', 120.00]);
+  configSheet.appendRow(['Custo kWh Energia', 0.85]);
+  configSheet.appendRow(['Potência Impressora (W)', 150]);
+  configSheet.appendRow(['Depreciação Impressora/h', 1.50]);
+  
+  // Orçamentos iniciais
+  configSheet.appendRow(['']);
+  configSheet.appendRow(['Orçamentos', 'Valor Limite']);
+  configSheet.appendRow(['Alimentação', 800.00]);
+  configSheet.appendRow(['Moradia', 1500.00]);
+  configSheet.appendRow(['Transporte', 300.00]);
+  configSheet.appendRow(['Lazer', 400.00]);
+  configSheet.appendRow(['Saúde', 200.00]);
+  configSheet.appendRow(['Insumos 3D', 250.00]);
+  configSheet.appendRow(['Outros', 300.00]);
+
+  configSheet.getRange('A1:B1').setFontWeight('bold').setBackground('#0f172a').setFontColor('#ffffff');
+  configSheet.getRange('A8:B8').setFontWeight('bold').setBackground('#0f172a').setFontColor('#ffffff');
+  configSheet.getRange('B2:B6').setNumberFormat('R$ #,##0.00');
+  configSheet.getRange('B9:B15').setNumberFormat('R$ #,##0.00');
+
+  // Remove a Página1 vazia se existir e não for a única
+  let pag1 = ss.getSheetByName('Página1');
+  if (pag1 && ss.getSheets().length > 1) {
+    try {
+      ss.deleteSheet(pag1);
+    } catch(e) {}
+  }
+  
+  ui.alert('🎉 Estrutura Inicializada com Sucesso!\n\nTodas as abas foram criadas e formatadas com as fórmulas padrão. Agora você já pode usar a calculadora e o site!');
+}
+
+/**
+ * Importa o token e credenciais do arquivo "token.txt" no Google Drive.
+ */
+function importCredentialsFromDrive() {
+  const ui = SpreadsheetApp.getUi();
+  const userProps = PropertiesService.getUserProperties();
+  
+  const files = DriveApp.getFilesByName('token.txt');
+  if (!files.hasNext()) {
+    ui.alert('❌ Erro', 'Não encontrei o arquivo "token.txt" na sua pasta do Google Drive. Certifique-se de que o arquivo existe e foi sincronizado.', ui.ButtonSet.OK);
+    return;
+  }
+  
+  try {
+    const file = files.next();
+    const content = file.getAs('text/plain').getDataAsString().trim();
+    const lines = content.split('\n').map(l => l.trim());
+    
+    const token = lines[0];
+    const owner = lines[1] || 'brunoserra123';
+    const repo = lines[2] || 'planilha-intelingete-';
+    
+    if (!token || !token.startsWith('ghp_')) {
+      ui.alert('❌ Erro', 'O token lido do arquivo "token.txt" é inválido. Ele deve começar com "ghp_".', ui.ButtonSet.OK);
+      return;
+    }
+    
+    // Salva no script
+    userProps.setProperty('GH_TOKEN', token);
+    userProps.setProperty('GH_OWNER', owner);
+    userProps.setProperty('GH_REPO', repo);
+    
+    // Pede apenas a senha de criptografia
+    const passPrompt = ui.prompt('FinSmart - Senha', 'Credenciais do GitHub importadas com sucesso do Drive!\n\nAgora, digite apenas a sua senha do site FinSmart:', ui.ButtonSet.OK_CANCEL);
+    if (passPrompt.getSelectedButton() === ui.Button.OK) {
+      const password = passPrompt.getResponseText().trim();
+      if (password) {
+        userProps.setProperty('FINSMART_PASS', password);
+        ui.alert('🎉 Configuração concluída com sucesso!');
+      } else {
+        ui.alert('⚠️ Configuração parcial: Senha não cadastrada.');
+      }
+    }
+  } catch (err) {
+    ui.alert('❌ Erro ao ler arquivo do Drive: ' + err.toString());
+  }
+}
+
 /* FIM DO ARQUIVO "Código.gs" */
 
 
@@ -291,7 +974,7 @@ function syncPaidOrdersManually() {
       flex: 1;
     }
     
-    /* Box de Resultados */
+    // Box de Resultados
     .calc-results {
       background: rgba(255, 255, 255, 0.02);
       border: 1px solid var(--border-color);
@@ -325,7 +1008,7 @@ function syncPaidOrdersManually() {
       color: var(--accent-green);
     }
     
-    /* Botões */
+    // Botões
     .btn {
       width: 100%;
       padding: 10px;

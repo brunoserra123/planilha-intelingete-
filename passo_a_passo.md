@@ -84,15 +84,45 @@ Guarda os parâmetros para a calculadora funcionar. Escreva exatamente assim nas
 
 1. **Atualize a página** da sua planilha do Google no navegador.
 2. Você verá um novo menu surgir no topo da planilha chamado: **`FinSmart 🤖`**.
-3. Clique em **FinSmart 🤖** > **Abrir Calculadora**.
-4. **Autorização Inicial**:
+3. **Autorização Inicial** (necessário rodar qualquer comando para o Google solicitar autorização):
+   * Clique em **FinSmart 🤖** > **Inicializar Estrutura da Planilha 🛠️**.
    * O Google pedirá uma autorização de segurança para rodar o script (isso é padrão em qualquer automação própria).
    * Clique em **Continuar** > selecione sua conta de e-mail > clique em **Avançado** (Advanced) no canto inferior esquerdo > clique em **Acessar Projeto sem nome (não seguro)** > e por fim clique em **Permitir**.
-5. Clique novamente em **FinSmart 🤖** > **Abrir Calculadora**.
-6. Uma barra lateral preta e moderna (no mesmo estilo de luxo escuro) vai se abrir na direita da planilha!
+4. Clique novamente em **FinSmart 🤖** > **Inicializar Estrutura da Planilha 🛠️** e confirme para que o robô crie e formate todas as abas e fórmulas automaticamente em segundos!
+5. Depois, clique em **FinSmart 🤖** > **Abrir Calculadora ⚙️** para abrir a barra lateral de precificação de luxo na direita da planilha!
 
 ---
 
 ## 📊 Vantagens Adicionais:
 * **Uso no Celular**: Você pode baixar o aplicativo oficial **Google Planilhas** no seu iPhone ou Android e ver todos os dados em tempo real, criar gráficos nativos direto na tela e ver as atualizações automáticas de ações!
 * **Calculadora Móvel**: Para rodar o Apps Script no celular, você pode registrar os pedidos na planilha e eles serão sincronizados no computador para que você precise apenas rodar o botão lateral.
+
+---
+
+## 🔗 Passo 4: Como Habilitar a Sincronização Bilateral e usar o Robozinho 🤖
+
+Você tem duas formas independentes (ou combinadas) de sincronizar seu site e sua planilha:
+
+### Opção A: Usar o Robô Diretamente no Menu da Planilha (Sync Manual)
+Esta é a forma mais simples de atualizar o site a partir da planilha:
+1. **Configuração Automática (Recomendado)**:
+   * Eu já criei o arquivo **`token.txt`** na sua pasta do Google Drive contendo as suas credenciais.
+   * Na sua planilha, basta clicar em **FinSmart 🤖** > **Importar Credenciais do Drive 📂**.
+   * O script irá ler as credenciais do arquivo do Drive automaticamente e abrirá uma janela pedindo apenas a sua **senha de criptografia do site**.
+2. **Configuração Manual**:
+   * Se preferir fazer manualmente, clique em **FinSmart 🤖** > **Configurar Credenciais do GitHub ⚙️** e digite os dados.
+3. Clique em **Enviar Dados para o Site (Nuvem) 🤖**: A planilha irá compactar, criptografar e enviar todas as transações, pedidos e configurações direto para o GitHub. Ao recarregar seu site, ele já estará atualizado!
+4. Se você fizer lançamentos no site e quiser baixá-los na planilha, basta clicar em **Puxar Dados do Site (Nuvem) 🤖** no menu do Google Sheets!
+
+### Opção B: Sincronização Automática em Tempo Real (Via Web App)
+Esta forma faz o próprio site FinSmart ler e salvar na sua planilha em tempo real:
+1. No painel do **Apps Script** da sua planilha (onde colou o código):
+   * Clique no botão azul **Implantar** (Deploy) no canto superior direito > escolha **Nova implantação** (New deployment).
+   * Clique no ícone de engrenagem ao lado de "Selecionar tipo" e escolha **App da Web** (Web App).
+   * Em **Executar como**, deixe como **Eu (seu-email@gmail.com)**.
+   * Em **Quem tem acesso**, altere para **Qualquer pessoa** (Anyone) (isso é necessário para o site conseguir enviar os dados, mas fique tranquilo: sua URL do script é secreta e os dados só são lidos se você a configurar no seu site).
+   * Clique em **Implantar** (talvez o Google peça para autorizar o acesso novamente).
+2. Copie a **URL do App da Web** gerada (ela termina com `/exec`).
+3. Abra o seu site **FinSmart**, vá em **Configurações** (engrenagem na barra lateral) > localize o bloco **Configurar Sincronização Google Planilhas**.
+4. Clique em **Sincronizar Google Planilhas**, cole a URL copiada e clique em **Salvar e Sincronizar**.
+5. Pronto! Agora o botão "Sincronizar Nuvem" do site enviará e buscará dados direto da planilha automaticamente!

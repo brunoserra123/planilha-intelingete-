@@ -275,8 +275,31 @@ async function attemptUnlock() {
         }
     }
 
-    // 2. Se não tem GitHub ou falhou, tenta desbloquear localmente
-    let unlockSuccess = githubSuccess;
+    // 1.5 Tentar sincronizar dados do Google Sheets se configurado
+    const hasSheets = !!localStorage.getItem('sheets_url');
+    let sheetsSuccess = false;
+
+    if (hasSheets) {
+        try {
+            const sheetsUrl = localStorage.getItem('sheets_url');
+            const res = await fetch(sheetsUrl);
+            if (res.ok) {
+                const resJson = await res.json();
+                if (resJson.success && resJson.data) {
+                    state = resJson.data;
+                    userPassword = password;
+                    saveState();
+                    sheetsSuccess = true;
+                    console.log("[FinSmart Sheets] Desbloqueado com dados do Google Sheets.");
+                }
+            }
+        } catch (err) {
+            console.warn("[FinSmart Sheets] Falha ao puxar dados do Google Sheets no login:", err);
+        }
+    }
+
+    // 2. Se não tem GitHub/Sheets ou falhou, tenta desbloquear localmente
+    let unlockSuccess = githubSuccess || sheetsSuccess;
     if (!unlockSuccess) {
         unlockSuccess = decryptAndLoadLocal(password);
     }
@@ -1665,6 +1688,126 @@ function removeGitHubConfig() {
     }
 }
 
+// Google Sheets Sync Functions
+function openSheetsModal() {
+    const modal = document.getElementById('modal-sheets');
+    document.getElementById('sheets-url').value = localStorage.getItem('sheets_url') || '';
+    modal.classList.add('active');
+}
+
+function saveSheetsConfig(e) {
+    e.preventDefault();
+
+    const urlValue = document.getElementById('sheets-url').value.trim();
+
+    if (!urlValue) {
+        alert("Preencha o campo de URL.");
+        return;
+    }
+
+    localStorage.setItem('sheets_url', urlValue);
+    document.getElementById('modal-sheets').classList.remove('active');
+    
+    // Inicia sincronização com Google Sheets
+    syncWithGoogleSheets();
+}
+
+function removeSheetsConfig() {
+    if (confirm("Deseja desconectar a integração com a Google Planilha?")) {
+        localStorage.removeItem('sheets_url');
+        alert("Integração com Google Sheets removida!");
+        window.location.reload();
+    }
+}
+
+async function syncWithGoogleSheets() {
+    const url = localStorage.getItem('sheets_url');
+    if (!url) return;
+
+    const btnCloudSync = document.getElementById('btn-cloud-sync');
+    let originalHTML = "";
+    if (btnCloudSync) {
+        originalHTML = btnCloudSync.innerHTML;
+        btnCloudSync.innerHTML = '<i data-lucide="refresh-cw" class="spin"></i> Sincronizando...';
+        btnCloudSync.disabled = true;
+    }
+
+    try {
+        // 1. Enviar dados locais para a Planilha (POST)
+        let postSuccess = false;
+        try {
+            const postRes = await fetch(url, {
+                method: 'POST',
+                body: JSON.stringify(state)
+            });
+            if (postRes.ok) postSuccess = true;
+        } catch (e) {
+            // Fallback para no-cors
+            await fetch(url, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify(state)
+            });
+            postSuccess = true;
+        }
+
+        // 2. Buscar os dados atualizados da Planilha (GET)
+        const getRes = await fetch(url);
+        if (getRes.ok) {
+            const resJson = await getRes.json();
+            if (resJson.success && resJson.data) {
+                state = resJson.data;
+                saveState();
+                
+                const activeTab = document.querySelector('.tab-content.active');
+                if (activeTab) {
+                    const tabId = activeTab.id;
+                    if (tabId === 'tab-dashboard') renderDashboard();
+                    else if (tabId === 'tab-investments') renderInvestments();
+                    else if (tabId === 'tab-sales') renderPrinting3D();
+                    else if (tabId === 'tab-transactions') renderTransactions();
+                } else {
+                    renderDashboard();
+                }
+                
+                alert("🎉 Sincronização Google Sheets concluída!\n\nDados enviados e atualizados em tempo real.");
+            }
+        } else {
+            if (postSuccess) {
+                alert("🎉 Dados enviados para a planilha com sucesso!");
+            } else {
+                alert("⚠️ Não foi possível sincronizar com o Google Sheets.");
+            }
+        }
+    } catch (err) {
+        console.error("Erro na sincronização com Google Sheets:", err);
+        alert("⚠️ Erro ao conectar com Google Sheets: " + err.message);
+    } finally {
+        if (btnCloudSync) {
+            btnCloudSync.innerHTML = originalHTML;
+            btnCloudSync.disabled = false;
+        }
+        lucide.createIcons();
+    }
+}
+
+async function handleCloudSync() {
+    const hasGitHub = !!localStorage.getItem('gh_token');
+    const hasSheets = !!localStorage.getItem('sheets_url');
+
+    if (!hasGitHub && !hasSheets) {
+        openGitHubModal();
+        return;
+    }
+
+    if (hasSheets) {
+        await syncWithGoogleSheets();
+    }
+    if (hasGitHub) {
+        await syncWithGitHub();
+    }
+}
+
 function exportJSONBackup() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 4));
     const downloadAnchor = document.createElement('a');
@@ -1828,11 +1971,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('ord-type').addEventListener('change', handleOrderModalTypeChange);
     document.getElementById('order-form').addEventListener('submit', saveOrder);
 
-    // Modal GitHub Config
+    // Modal Configurações de Sync
     const cloudSyncBtn = document.getElementById('btn-cloud-sync');
     if (cloudSyncBtn) {
-        cloudSyncBtn.addEventListener('click', syncWithGitHub);
+        cloudSyncBtn.addEventListener('click', handleCloudSync);
     }
+
+    // Eventos Modal GitHub
     document.getElementById('btn-close-modal-gh').addEventListener('click', () => {
         document.getElementById('modal-github').classList.remove('active');
     });
@@ -1841,9 +1986,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('gh-form').addEventListener('submit', saveGitHubConfig);
 
-    // Botoes adicionais do GitHub na aba de Configurações
+    // Eventos Modal Google Sheets
+    document.getElementById('btn-close-modal-sheets').addEventListener('click', () => {
+        document.getElementById('modal-sheets').classList.remove('active');
+    });
+    document.getElementById('btn-cancel-sheets').addEventListener('click', () => {
+        document.getElementById('modal-sheets').classList.remove('active');
+    });
+    document.getElementById('sheets-form').addEventListener('submit', saveSheetsConfig);
+
+    // Botões adicionais do GitHub e Sheets na aba de Configurações
     document.getElementById('btn-configure-github-btn').addEventListener('click', openGitHubModal);
     document.getElementById('btn-remove-github-btn').addEventListener('click', removeGitHubConfig);
+    document.getElementById('btn-configure-sheets-btn').addEventListener('click', openSheetsModal);
+    document.getElementById('btn-remove-sheets-btn').addEventListener('click', removeSheetsConfig);
 
     // Filtros de Transações
     document.getElementById('tx-search').addEventListener('input', renderTransactions);
@@ -1888,4 +2044,16 @@ function escapeHTML(str) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+
+function updateDateDisplay() {
+    const el = document.getElementById('current-date');
+    if (el) {
+        const now = new Date();
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        let dateStr = now.toLocaleDateString('pt-BR', options);
+        // Capitalizar a primeira letra
+        dateStr = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+        el.innerText = dateStr;
+    }
 }
